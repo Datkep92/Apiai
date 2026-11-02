@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tra cứu & quản lý API model free</title>
+<style>
+body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f6f7fb;color:#111}
+header{padding:14px 16px;background:#111;color:#fff;position:sticky;top:0;z-index:5}
+header h1{margin:0;font-size:18px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;padding:12px 16px;background:#fff;border-bottom:1px solid #e5e7eb}
+.controls input,.controls select{padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:14px}
+.controls input{flex:1;min-width:160px}
+.list{padding:12px 16px;display:grid;gap:10px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px}
+.card h3{margin:0 0 4px;font-size:16px}
+.meta{font-size:12px;color:#555;margin-bottom:6px}
+.ep{margin:6px 0;padding:8px;background:#f3f4f6;border-radius:8px;font-size:13px}
+.ep b{color:#111}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+button{padding:6px 10px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-size:12px;cursor:pointer}
+button.gray{background:#6b7280}
+input.key{width:100%;padding:6px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;margin-top:4px}
+.small{font-size:11px;color:#6b7280;margin-top:4px}
+</style>
+</head>
+<body>
+<header><h1>Tra cứu & quản lý API model free</h1></header>
+<div class="controls">
+  <input id="q" placeholder="Tìm model / provider / id...">
+  <select id="prov"><option value="">Tất cả provider</option></select>
+  <button id="upd" class="gray">Cập nhật dữ liệu</button>
+</div>
+<div class="list" id="list"></div>
+<script>
+const DATA = __DATA__;
+const KEY_STORAGE = "api_keys_v1";
+function loadKeys(){try{return JSON.parse(localStorage.getItem(KEY_STORAGE)||"{}")}catch(e){return {}}}
+function saveKeys(k){localStorage.setItem(KEY_STORAGE,JSON.stringify(k))}
+let keys = loadKeys();
+function providers(){
+  const s = new Set();
+  DATA.forEach(m=>m.endpoints.forEach(e=>s.add(e.provider)));
+  return [...s].sort();
+}
+const provSel = document.getElementById("prov");
+providers().forEach(p=>{const o=document.createElement("option");o.value=p;o.textContent=p;provSel.appendChild(o)});
+function copy(text){navigator.clipboard.writeText(text).then(()=>alert("Đã copy"))}
+function render(){
+  const q = document.getElementById("q").value.toLowerCase();
+  const pv = provSel.value;
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+  DATA.filter(m=>{
+    if(pv && !m.endpoints.some(e=>e.provider===pv)) return false;
+    if(!q) return true;
+    const hay = (m.name+" "+m.dev+" "+m.endpoints.map(e=>e.id+" "+e.provider).join(" ")).toLowerCase();
+    return hay.includes(q);
+  }).forEach(m=>{
+    const card = document.createElement("div");
+    card.className = "card";
+    let eps = m.endpoints.filter(e=>!pv||e.provider===pv).map(e=>{
+      const key = keys[e.provider]||"";
+      return `<div class="ep">
+        <b>${e.provider}</b> — <code>${e.id}</code><br>
+        Context: ${e.context}<br>
+        <a href="${e.url}" target="_blank">Mở playground</a>
+        <div class="row">
+          <button onclick="copy('${e.id}')">Copy model id</button>
+        </div>
+        <input class="key" placeholder="API key cho ${e.provider}" value="${key}" data-prov="${e.provider}">
+        <div class="small">Lưu trong trình duyệt (localStorage)</div>
+      </div>`;
+    }).join("");
+    card.innerHTML = `<h3>${m.name}</h3>
+      <div class="meta">${m.dev||"?"} · ${m.type} · ${m.params||""} · AA: ${m.aa||"n/a"}</div>
+      ${eps}`;
+    list.appendChild(card);
+  });
+  document.querySelectorAll("input.key").forEach(inp=>{
+    inp.onchange = ()=>{keys[inp.dataset.prov]=inp.value;saveKeys(keys);};
+  });
+}
+document.getElementById("q").oninput = render;
+provSel.onchange = render;
+document.getElementById("upd").onclick = ()=>{alert("Chạy build_ui.py trên máy để cập nhật dữ liệu mới nhất.");};
+render();
+</script>
+</body>
+</html>
