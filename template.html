@@ -44,6 +44,12 @@ a{color:var(--accent2);text-decoration:none}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--card);border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:12px;font-size:13px;opacity:0;transition:all .25s;pointer-events:none;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,.4)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .empty{text-align:center;color:var(--muted);padding:40px 20px;font-size:14px}
+.provpanel{margin:0 20px 10px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 14px}
+.provpanel summary{cursor:pointer;font-weight:600;color:var(--accent)}
+.provgrid{display:grid;gap:8px;margin-top:10px}
+.provitem{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:4px}
+.provitem b{font-size:13px}
+.provitem .id{font-size:12px}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media (min-width:700px){.list{grid-template-columns:repeat(2,1fr)}}
 </style>
@@ -51,7 +57,7 @@ a{color:var(--accent2);text-decoration:none}
 <body>
 <header>
   <h1>API Model Free</h1>
-  <p>Tra cứu & quản lý API key cho 273 model free</p>
+  <p>Tra cứu & quản lý API key cho <span id="count"></span> model free</p>
 </header>
 <div class="controls">
   <div class="search">
@@ -63,15 +69,22 @@ a{color:var(--accent2);text-decoration:none}
     <select id="sort"><option value="name">Tên A→Z</option><option value="aa">AA cao→thấp</option></select>
   </div>
 </div>
+<details class="provpanel">
+  <summary>Base URL các nhà cung cấp (copy nhanh)</summary>
+  <div class="provgrid" id="provgrid"></div>
+</details>
 <div class="list" id="list"></div>
 <div class="toast" id="toast"></div>
 <script>
 const DATA = __DATA__;
-const KEY_STORAGE = "api_keys_v1";
+const MODELS = DATA.models || [];
+const PROVIDERS = DATA.providers || [];
+const PROVIDER_MAP = {};
+PROVIDERS.forEach(p=>{PROVIDER_MAP[p.name]=p;});
 function loadKeys(){try{return JSON.parse(localStorage.getItem(KEY_STORAGE)||"{}")}catch(e){return {}}}
 function saveKeys(k){localStorage.setItem(KEY_STORAGE,JSON.stringify(k))}
 let keys = loadKeys();
-function providers(){const s=new Set();DATA.forEach(m=>m.endpoints.forEach(e=>s.add(e.provider)));return [...s].sort()}
+function providers(){const s=new Set();MODELS.forEach(m=>m.endpoints.forEach(e=>s.add(e.provider)));return [...s].sort()}
 const provSel=document.getElementById("prov");
 providers().forEach(p=>{const o=document.createElement("option");o.value=p;o.textContent=p;provSel.appendChild(o)});
 function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1600)}
@@ -83,7 +96,7 @@ function render(){
   const sort=document.getElementById("sort").value;
   const list=document.getElementById("list");
   list.innerHTML="";
-  let arr=DATA.filter(m=>{
+  let arr=MODELS.filter(m=>{
     if(pv && !m.endpoints.some(e=>e.provider===pv)) return false;
     if(!q) return true;
     const hay=(m.name+" "+m.dev+" "+m.endpoints.map(e=>e.id+" "+e.provider).join(" ")).toLowerCase();
@@ -97,11 +110,14 @@ function render(){
     card.style.animationDelay=(i*0.02)+"s";
     let eps=m.endpoints.filter(e=>!pv||e.provider===pv).map(e=>{
       const key=keys[e.provider]||"";
+      const pinfo=PROVIDER_MAP[e.provider];
       return `<div class="ep">
         <div><b>${e.provider}</b> <span class="badge">${e.context} ctx</span></div>
         <div class="id">${e.id}</div>
+        ${pinfo?`<div class="small">Base URL: <span class="id">${pinfo.base}</span></div>`:""}
         <div class="row">
           <button onclick="copy('${e.id}')">Copy ID</button>
+          ${pinfo?`<button class="ghost" onclick="copy('${pinfo.base}')">Copy Base URL</button>`:""}
           <a href="${e.url}" target="_blank"><button class="ghost">Playground</button></a>
         </div>
         <input class="key" placeholder="API key cho ${e.provider}" value="${key}" data-prov="${e.provider}">
@@ -123,6 +139,19 @@ function render(){
     inp.onchange=()=>{keys[inp.dataset.prov]=inp.value;saveKeys(keys);toast("Đã lưu key")};
   });
 }
+function populateProviders(){
+  const g=document.getElementById("provgrid");
+  g.innerHTML=PROVIDERS.map(p=>`<div class="provitem">
+    <b>${p.label}</b>
+    <div class="id">${p.base}</div>
+    <div class="row">
+      <button class="ghost" onclick="copy('${p.base}')">Copy Base URL</button>
+      <a href="${p.url}" target="_blank"><button class="ghost">Docs</button></a>
+    </div>
+  </div>`).join("");
+}
+populateProviders();
+document.getElementById("count").textContent=MODELS.length;
 document.getElementById("q").oninput=render;
 provSel.onchange=render;
 document.getElementById("sort").onchange=render;
